@@ -28,6 +28,7 @@ ASSETS = {
     'pipeline_view.js','schedule_compare.js','comparison_marey.js','verification_view.js','workflow_tracker.js',
 }
 DOWNLOADS = {'pipeline','manual-edits','platform-version'}
+WORKBENCH_PANEL = 'ui://transit/workbench.html'
 
 class SessionVerifier:
     async def verify_token(self, token):
@@ -92,9 +93,32 @@ def import_agency(agency_id: str) -> dict:
 
 @mcp.tool()
 @threaded
+def import_agency_alerts(agency_id: str) -> dict:
+    """Retrieve public service alerts from an agency preset into the session for assessment."""
+    agencies = tool('GET','/api/agency-presets')['items']
+    match = next((item for item in agencies if item['id']==agency_id),None)
+    if not match or not match.get('alert_url'):
+        raise ValueError('Choose an agency with an alert source. Use list_agencies.')
+    result=tool('POST','/api/import-alerts',{'mode':match['alert_type'],'value':match['alert_url']})
+    return {'batch_id':result['batch_id'],'imported':len(result['items']),'note':result['note']}
+
+@mcp.tool()
+@threaded
+def review_alerts(limit: int = 20) -> dict:
+    """Read alert text, assessment and modeling plans from the current session."""
+    assessment = tool('GET','/api/alert-assessments')
+    if not assessment:
+        return {'items':[]}
+    items = assessment['items']
+    return {'stale':assessment['stale'],'total':len(items),'items':items[:max(1,min(limit,25))]}
+
+@mcp.tool()
+@threaded
 def feed_summary() -> dict:
     """Read the currently imported feed's dates, agencies and record counts."""
-    return tool('GET','/api/summary')
+    result=tool('GET','/api/summary')
+    result['source'].pop('source',None)
+    return result
 
 @mcp.tool()
 @threaded
@@ -144,11 +168,16 @@ def review_output() -> dict:
     """Verify the exact exported archive and compare it with the original feed."""
     return tool('GET','/api/pipeline-verification')
 
-@mcp.tool()
+@mcp.tool(meta={'ui':{'resourceUri':WORKBENCH_PANEL}})
 @threaded
 def open_workbench() -> dict:
-    """Open the visual workbench to review the same session used by your MCP client."""
+    """Open an interactive schedule and output panel in chat, with a link to the full workbench."""
     return {'url':SITE,'note':'Open the workbench in the browser where you created this session.'}
+
+@mcp.resource(WORKBENCH_PANEL,name='Transit Workbench',
+              mime_type='text/html;profile=mcp-app')
+def workbench_panel() -> str:
+    return (ROOT/'hosted'/'mcp-app.html').read_text(encoding='utf-8')
 
 mcp_app = mcp.streamable_http_app()
 
