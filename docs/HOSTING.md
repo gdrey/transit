@@ -42,3 +42,9 @@ No database, object store, worker, or remote MCP has been provisioned by this pr
 - [Neon Object Storage](https://neon.com/docs/storage/overview)
 - [Neon branching](https://neon.com/docs/introduction/branching)
 - [GTFS Schedule reference](https://gtfs.org/documentation/schedule/reference/)
+
+## Initial development import
+
+An initial private Neon development database has a single public SEPTA bus feed. `backend/import_gtfs.py` preserves its full ZIP and imports an index of the core schedule tables in one transaction, keyed by feed version and ZIP SHA-256. This first importer is a migration experiment: it does not implement workspace isolation, authentication, file storage, service-edit operations, output comparison, or a hosted API. GTFS values are stored as text in the index and need explicit parsing for numeric stop order and times past midnight.
+
+The read-only Vercel preview is not connected to the database. Do not connect a public deployment to this initial schema until workspace authorization and appropriate restricted database roles are implemented.
