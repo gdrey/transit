@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "reason",
+    "change_type",
+    "route_id",
+    "direction_id",
+    "reference_route_id",
+    "endpoint_names",
+    "stop_ids",
+    "timezone",
+    "windows",
+    "assumptions",
+    "target_direction_id",
+    "target_stop_ids"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "resolved",
+        "needs_clarification",
+        "unsupported",
+        "no_schedule_modeling_needed"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "change_type": {
+      "type": "string",
+      "enum": [
+        "stops_added",
+        "stops_skipped",
+        "reroute_via_route",
+        "segment_suspended",
+        "unsupported",
+        "no_schedule_impact",
+        "platform_change"
+      ]
+    },
+    "route_id": {
+      "type": "string"
+    },
+    "direction_id": {
+      "type": "string"
+    },
+    "reference_route_id": {
+      "type": "string"
+    },
+    "endpoint_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stop_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "target_direction_id": {
+      "type": "string"
+    },
+    "target_stop_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

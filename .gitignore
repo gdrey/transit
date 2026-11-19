@@ -1,0 +1,10 @@
+.data/
+.deps/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+.venv/
+node_modules/
+diagram-data.json
+.DS_Store
