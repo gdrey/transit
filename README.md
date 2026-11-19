@@ -2,6 +2,8 @@
 
 An agency-agnostic, local prototype for inspecting a GTFS Schedule, interpreting service alerts, planning supported edits, and comparing an output ZIP with its original. It includes a small MCP server exposing schedule inspection and a separate web workbench for reviewing and drafting changes.
 
+The [interactive schedule preview](https://transit-workbench.vercel.app/) runs in the browser; it does not assess alerts or modify feeds. See [the proposed hosting architecture](docs/HOSTING.md) for the path to a full hosted workbench.
+
 ## Run locally
 
 Use Python 3.10 or later and install the prototype dependencies:
