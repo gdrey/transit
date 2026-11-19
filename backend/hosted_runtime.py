@@ -51,7 +51,7 @@ def run(conn, session, method, path, body=b'', ai=None, upload_parts=None, part=
         worker = subprocess.run([sys.executable,str(WORKER)],input=json.dumps(event),text=True,cwd=root,env=env,
                                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=260)
         if worker.returncode:
-            failure = re.search(r'^([A-Za-z]+Error)(?:: No module named (['"]?[A-Za-z0-9_.]+))?',
+            failure = re.search(r'^([A-Za-z]+Error)',
                                 worker.stderr.splitlines()[-1] if worker.stderr else '')
             logging.getLogger(__name__).warning('GTFS worker exited %s (%s, bundle included: %s)',
                                                 worker.returncode,failure.group(0) if failure else 'unknown',
