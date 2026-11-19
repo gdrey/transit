@@ -106,10 +106,10 @@ td{font-family:monospace}
             element('review').disabled=false;
             element('open').disabled=false;
             const result=await call('list_routes');
-            const routes=Array.isArray(result)?result:(result.result || []);
+            const routes=result.routes;
             element('route').replaceChildren(...routes.map(route=>new Option(route.route_short_name || route.route_id,route.route_id)));
             element('route').disabled=element('schedule').disabled=routes.length===0;
-            element('status').textContent=routes.length?'Select a route and service date.':'Import a feed in the workbench first.';
+            element('status').textContent=routes.length ? (result.truncated ? 'Showing the first 100 routes.' : 'Select a route and service date.') : 'Import a feed in the workbench first.';
         })
         .catch(error=>{ element('status').textContent=error.message; });
 })();

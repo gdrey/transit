@@ -122,11 +122,12 @@ def feed_summary() -> dict:
 
 @mcp.tool()
 @threaded
-def list_routes(query: str = '') -> list[dict]:
+def list_routes(query: str = '') -> dict:
     """List up to 100 routes matching a route ID, short name, or long name."""
     term = query.casefold()
-    return [row for row in tool('GET','/api/routes') if any(term in (row.get(k) or '').casefold()
-            for k in ('route_id','route_short_name','route_long_name'))][:100]
+    matches = [row for row in tool('GET','/api/routes') if any(term in (row.get(k) or '').casefold()
+               for k in ('route_id','route_short_name','route_long_name'))]
+    return {'routes':matches[:100],'truncated':len(matches)>100}
 
 @mcp.tool()
 @threaded
