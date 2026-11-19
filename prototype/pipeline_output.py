@@ -3,7 +3,7 @@ import hashlib,json,os,tempfile,uuid,datetime
 import feed_validation
 import manual_edits,workbench
 
-DIR=os.path.join(workbench.ROOT,'.data','pipeline')
+DIR=os.path.join(workbench.DATA_DIR,'pipeline')
 def digest(path):
     h=hashlib.sha256()
     with open(path,'rb') as f:

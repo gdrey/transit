@@ -3,7 +3,7 @@ import csv, datetime, hashlib, io, json, os, re, subprocess, tempfile, uuid, zip
 import workbench
 import llm_client
 
-DIR=os.path.join(workbench.ROOT,'.data','manual-edits')
+DIR=os.path.join(workbench.DATA_DIR,'manual-edits')
 FIELDS=('route_color','route_short_name')
 
 def source():
@@ -145,6 +145,9 @@ def status():
 
 def add(text,service=None):
     path,digest,routes=source(); parsed=interpret(text,routes,service)
+    return stage(text,digest,parsed)
+
+def stage(text,digest,parsed):
     if source()[1]!=digest:raise ValueError('The feed changed while interpreting the request; please retry.')
     current=status();items=current['items'];items.append({'id':'edit-'+uuid.uuid4().hex[:8],'text':text,'created_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'active':True,'applied':False,'edits':parsed['edits'],'assumptions':parsed.get('assumptions',[])})
     save(items,digest,current['version']);return status()

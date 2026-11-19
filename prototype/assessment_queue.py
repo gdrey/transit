@@ -11,7 +11,7 @@ import alert_triage
 import realtime_alerts
 import workbench
 
-DB=os.path.join(workbench.ROOT,'.data','alerts.sqlite')
+DB=os.path.join(workbench.DATA_DIR,'alerts.sqlite')
 LOCK=threading.Lock()
 ASSISTANT_LOCK=threading.Lock()
 SERVICES={}

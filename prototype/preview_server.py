@@ -103,7 +103,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not LOCK.acquire(blocking=False): raise ValueError('Another import is in progress.')
             try:
                 previous=previous_feed_context()
-                directory=os.path.join(workbench.ROOT,'.data');os.makedirs(directory,exist_ok=True)
+                directory=workbench.DATA_DIR;os.makedirs(directory,exist_ok=True)
                 fd,temp=tempfile.mkstemp(prefix='download-',suffix='.zip',dir=directory); os.close(fd)
                 try:
                     opener=urllib.request.build_opener(Redirects())
@@ -152,7 +152,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 import hashlib
                 previous=previous_feed_context()
-                directory=os.path.join(workbench.ROOT,'.data');os.makedirs(directory,exist_ok=True)
+                directory=workbench.DATA_DIR;os.makedirs(directory,exist_ok=True)
                 fd,temp=tempfile.mkstemp(prefix='upload-',suffix='.zip',dir=directory)
                 try:
                     digest=hashlib.sha256();remaining=length
@@ -423,7 +423,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     data=dict(output['service']);data['output']=output['source'];data['sha256']=output['sha256'];data['version']=output['version']
                 self.send(200,json.dumps(data,ensure_ascii=False).encode(),'application/json; charset=utf-8')
             elif url.path=='/download/platform-version':
-                directory=os.path.join(workbench.ROOT,'.data','versions')
+                directory=os.path.join(workbench.DATA_DIR,'versions')
                 paths=[os.path.join(directory,x) for x in os.listdir(directory) if x.startswith('platform-') and x.endswith('.json')]
                 if not paths: raise ValueError('No platform draft exists yet.')
                 with open(max(paths,key=os.path.getmtime),encoding='utf-8') as f: data=json.load(f)
@@ -439,20 +439,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send(200,json.dumps(workbench.summary(),ensure_ascii=False).encode(),'application/json; charset=utf-8')
             elif url.path=='/api/latest-structured-check':
                 import hashlib
-                with open(os.path.join(workbench.ROOT,'.data','latest-structured-check.json'),encoding='utf-8') as f: data=json.load(f)
+                with open(os.path.join(workbench.DATA_DIR,'latest-structured-check.json'),encoding='utf-8') as f: data=json.load(f)
                 with workbench.connect() as db: current=db.execute('select source from metadata').fetchone()[0]
                 with open(current,'rb') as f: digest=hashlib.sha256(f.read()).hexdigest()
                 if digest!=data['feed_sha256']: raise ValueError('The current feed differs from the checked feed.')
                 self.send(200,json.dumps(data,ensure_ascii=False).encode(),'application/json; charset=utf-8')
             elif url.path=='/api/scenario':
-                path=os.path.join(workbench.ROOT,'.data','versions','financial-district-manifest.json')
+                path=os.path.join(workbench.DATA_DIR,'versions','financial-district-manifest.json')
                 with open(path,encoding='utf-8') as f: data=json.load(f)
                 with workbench.connect() as db: current=db.execute('select source from metadata').fetchone()[0]
                 if os.path.realpath(data['source'])!=os.path.realpath(current): raise ValueError('This scenario was created from a different loaded feed.')
                 data.pop('trip_id_mapping',None)
                 self.send(200,json.dumps(data,ensure_ascii=False).encode(),'application/json; charset=utf-8')
             elif url.path=='/download/scenario':
-                path=os.path.join(workbench.ROOT,'.data','versions','financial-district-manifest.json')
+                path=os.path.join(workbench.DATA_DIR,'versions','financial-district-manifest.json')
                 with open(path,encoding='utf-8') as f: data=json.load(f)
                 with workbench.connect() as db: current=db.execute('select source from metadata').fetchone()[0]
                 if os.path.realpath(data['source'])!=os.path.realpath(current): raise ValueError('This scenario was created from a different loaded feed.')

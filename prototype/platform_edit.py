@@ -73,7 +73,7 @@ def create(data,selected,blocked=None,progress=None):
     if not edits:raise ValueError('No affected scheduled platform records were found.')
     with workbench.connect() as db: source=db.execute('select source from metadata').fetchone()[0]
     version=uuid.uuid4().hex[:12]; prefix='wb_'+version+'_'
-    outdir=os.path.join(workbench.ROOT,'.data','versions');os.makedirs(outdir,exist_ok=True)
+    outdir=os.path.join(workbench.DATA_DIR,'versions');os.makedirs(outdir,exist_ok=True)
     fd,temp=tempfile.mkstemp(prefix='platform-',suffix='.tmp',dir=outdir);os.close(fd);output=os.path.join(outdir,'platform-'+version+'.zip')
     details=[]
     try:

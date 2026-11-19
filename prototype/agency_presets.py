@@ -8,7 +8,7 @@ BUILTINS=[
  {'id':'mbta_boston','name':'MBTA Boston','gtfs_url':'https://cdn.mbta.com/MBTA_GTFS.zip','alert_type':'GTFS Realtime alerts feed','alert_url':'https://cdn.mbta.com/realtime/Alerts.pb','builtin':True},
 ]
 TYPES=('MTA New York Subway','GTFS Realtime alerts feed','Alerts webpage')
-def path():return os.path.join(workbench.ROOT,'.data','agency-presets.json')
+def path():return os.path.join(workbench.DATA_DIR,'agency-presets.json')
 def read():
  try:
   with open(path(),encoding='utf-8') as f:data=json.load(f)

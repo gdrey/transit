@@ -21,7 +21,7 @@ def is_current(manifest):
     return bool(chosen) and manifest.get('selection_signature')==review_changes.selection_signature(data,chosen)
 
 def _latest_manifest():
-    directory=os.path.join(workbench.ROOT,'.data','versions')
+    directory=os.path.join(workbench.DATA_DIR,'versions')
     if not os.path.isdir(directory):return None
     paths=[os.path.join(directory,x) for x in os.listdir(directory) if x.startswith('platform-') and x.endswith('.json')]
     if not paths:return None

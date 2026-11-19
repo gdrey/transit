@@ -11,7 +11,8 @@ import sys
 import zipfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DB = os.environ.get('GTFS_DB', os.path.join(ROOT, '.data', 'feed.sqlite'))
+DATA_DIR = os.environ.get('GTFS_DATA_DIR', os.path.join(ROOT, '.data'))
+DB = os.environ.get('GTFS_DB', os.path.join(DATA_DIR, 'feed.sqlite'))
 TABLES = {
     'agency': ('agency_id', 'agency_name', 'agency_timezone'),
     'routes': ('route_id', 'route_short_name', 'route_long_name', 'agency_id', 'route_type', 'route_color', 'route_text_color'),
@@ -61,7 +62,7 @@ def import_feed(path, db_path=None, source_url=None):
             for table, col in [('trips','route_id'), ('trips','service_id'), ('stop_times','trip_id'), ('calendar_dates','service_id')]:
                 db.execute('CREATE INDEX idx_'+table+'_'+col+' ON '+table+'('+col+')')
             db.execute('CREATE TABLE metadata (source TEXT, imported_at TEXT, source_url TEXT)')
-            db.execute('INSERT INTO metadata VALUES (?,?,?)', (os.path.abspath(path), dt.datetime.now(dt.timezone.utc).isoformat(), source_url or ''))
+            db.execute('INSERT INTO metadata VALUES (?,?,?)', (path if not os.path.isabs(DATA_DIR) else os.path.abspath(path), dt.datetime.now(dt.timezone.utc).isoformat(), source_url or ''))
         os.replace(temp, db_path)
     finally:
         if os.path.exists(temp): os.remove(temp)

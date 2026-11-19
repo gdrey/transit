@@ -1,0 +1,18 @@
+{
+  "framework": "fastapi",
+  "regions": [
+    "iad1"
+  ],
+  "functions": {
+    "app.py": {
+      "maxDuration": 300,
+      "includeFiles": "{prototype,backend,hosted}/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/clean-sessions",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}

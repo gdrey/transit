@@ -85,7 +85,7 @@ def decode(raw, source):
 
 
 def store(raw, source, items, timestamp):
-    path=os.path.join(os.path.dirname(__file__),'.data','alerts.sqlite')
+    path=os.path.join(os.environ.get('GTFS_DATA_DIR', os.path.join(os.path.dirname(__file__), '.data')), 'alerts.sqlite')
     os.makedirs(os.path.dirname(path),exist_ok=True)
     with sqlite3.connect(path) as db:
         db.executescript('''CREATE TABLE IF NOT EXISTS alert_snapshots (id INTEGER PRIMARY KEY, source TEXT NOT NULL, fetched_at TEXT NOT NULL, feed_timestamp INTEGER, sha256 TEXT NOT NULL, protobuf BLOB NOT NULL);
