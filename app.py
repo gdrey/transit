@@ -350,4 +350,3 @@ def page(path:str='comparison-mockup.html'):
         html = html.replace('GTFS Workbench · Local prototype','GTFS Workbench')
         return HTMLResponse(html)
     return FileResponse(file)
-

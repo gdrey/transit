@@ -1,18 +1,21 @@
 """Live integration check against the isolated Neon development schema."""
 import hashlib
 import io
+import os
 import sys
 import uuid
 import zipfile
 from pathlib import Path
 from starlette.testclient import TestClient
+import httpx
 from app import app, sessions, SITE
 
 source = Path(sys.argv[1]).read_bytes()
 with zipfile.ZipFile(io.BytesIO(source)) as feed:
     original_routes = feed.read('routes.txt')
 
-with TestClient(app,base_url=SITE) as browser:
+client = httpx.Client(base_url=SITE,timeout=270) if os.getenv('CHECK_VERCEL') else TestClient(app,base_url=SITE)
+with client as browser:
     origin = {'Origin':SITE}
     def post(path,**kwargs):
         result = browser.post(path,headers=origin,**kwargs)

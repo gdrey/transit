@@ -4,6 +4,8 @@ import gzip
 import hashlib
 import io
 import json
+import logging
+import re
 import os
 from pathlib import Path
 import shutil
@@ -42,10 +44,18 @@ def run(conn, session, method, path, body=b'', ai=None, upload_parts=None, part=
             event['upload'] = str(upload)
         response = Path(root,'response')
         env = {key:os.environ[key] for key in WORKER_ENV if key in os.environ}
+        # Vercel adds runtime libraries to the parent's sys.path. Rebase those
+        # entries before changing the worker's current directory.
+        env['PYTHONPATH'] = os.pathsep.join(os.path.abspath(path) for path in sys.path)
         env.update(GTFS_DATA_DIR='.data',GTFS_RESPONSE=str(response),PYTHONDONTWRITEBYTECODE='1',TMPDIR=root)
         worker = subprocess.run([sys.executable,str(WORKER)],input=json.dumps(event),text=True,cwd=root,env=env,
                                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=260)
         if worker.returncode:
+            failure = re.search(r'^([A-Za-z]+Error)(?:: No module named (['"]?[A-Za-z0-9_.]+))?',
+                                worker.stderr.splitlines()[-1] if worker.stderr else '')
+            logging.getLogger(__name__).warning('GTFS worker exited %s (%s, bundle included: %s)',
+                                                worker.returncode,failure.group(0) if failure else 'unknown',
+                                                WORKER.is_file())
             raise RuntimeError('The GTFS engine could not process this request.')
         result = json.loads(worker.stdout)
         if method == 'POST' and result['status'] < 400:
