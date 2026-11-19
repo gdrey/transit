@@ -19,3 +19,7 @@ The database is currently intended for development only. Before a public hosted 
 The ZIP-in-Postgres implementation is for an isolated development experiment, not a production upload design. Large files should move to private object storage with bounded upload/download and retention. Hosted jobs, authorization, indexing, concurrency control, service-alert handling, change processing, validation, and comparison are still required before exposing this publicly. User AI credentials must stay out of database records and logs.
 
 Run local unit checks with `python -m unittest discover -s backend/tests -v`. `backend/tests/check_neon_isolation.py` exercises the authentication and feed lookup against a migrated **development branch**; pass its connection string on stdin. It rolls back its own test records.
+
+## Hosted pipeline work in progress
+
+The development branch now has private object storage and `002_hosted_pipeline.sql`. `cloud_import.py` indexes a selected GTFS archive into workspace- and version-scoped Postgres rows; `cloud_schedule.py` reads routes, trips and stop times; `cloud_jobs.py` provides job records; `cloud_route_edits.py` builds and verifies a route metadata output ZIP. These pieces are not wired into an HTTP API, background worker, or the Vercel UI yet. They do not implement service-alert edits or a full hosted workbench. The bucket and schema are on the development branch only.
