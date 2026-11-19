@@ -23,3 +23,9 @@ Run local unit checks with `python -m unittest discover -s backend/tests -v`. `b
 ## Hosted pipeline work in progress
 
 The development branch now has private object storage and `002_hosted_pipeline.sql`. `cloud_import.py` indexes a selected GTFS archive into workspace- and version-scoped Postgres rows; `cloud_schedule.py` reads routes, trips and stop times; `cloud_jobs.py` provides job records; `cloud_route_edits.py` builds and verifies a route metadata output ZIP. These pieces are not wired into an HTTP API, background worker, or the Vercel UI yet. They do not implement service-alert edits or a full hosted workbench. The bucket and schema are on the development branch only.
+
+## Hosted MCP development
+
+`hosted_mcp.py` is a development ASGI implementation using the MCP SDK's Streamable HTTP transport and Neon OAuth token verification. It exposes only `list_feeds`, `list_routes`, `scheduled_trips`, and `trip_stop_times`; it does not import or edit feeds. Requests require a valid token with the configured issuer and audience. A signed-in subject must belong to exactly one workspace. It is not deployed or connected to the workbench.
+
+Neon Auth is enabled on the isolated development branch. Completing the remote service requires hosted login and consent pages, OAuth server configuration and verification with real clients, a user-to-workspace provisioning flow, and Vercel/API deployment. Do not expose it until token verification, workspace isolation, rate limits, and end-to-end behavior are independently verified. An MCP App UI and write operations remain to be built.
