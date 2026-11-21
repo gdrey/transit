@@ -410,9 +410,13 @@ def download(request:Request,name:str,part:int=0,expected:str|None=None):
 def browser_agency_presets(request:Request):
     credential = cookie(request)
     if credential:
-        result,payload,_ = engine(credential,'GET','/api/agency-presets')
-        if result['status'] != 401:
-            return Response(payload,status_code=result['status'],media_type=result['type'])
+        try:
+            result,payload,_ = engine(credential,'GET','/api/agency-presets')
+            if result['status'] != 401:
+                return Response(payload,status_code=result['status'],media_type=result['type'])
+        except psycopg.OperationalError:
+            # The public agency catalog is useful even with an unavailable session store.
+            pass
     with (ROOT/'prototype'/'builtin-agency-presets.json').open(encoding='utf-8') as stream:
         return {'items':json.load(stream)}
 
