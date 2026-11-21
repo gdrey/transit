@@ -1,5 +1,5 @@
 """User-supplied, request-scoped OpenAI-compatible chat service adapter."""
-import ipaddress,json,socket,urllib.parse,urllib.request
+import ipaddress,json,socket,urllib.error,urllib.parse,urllib.request
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):raise ValueError('The AI service redirected the request; use its direct endpoint.')
@@ -35,5 +35,17 @@ def complete(prompt,schema,service,*,output_limit=None,prompt_limit=None):
         if len(raw)>2*1024*1024:raise ValueError('The AI response exceeded the size limit.')
         response=json.loads(raw);content=response['choices'][0]['message']['content']
         return json.loads(content)
+    except urllib.error.HTTPError as exc:
+        if output_limit is None:
+            raise ValueError('The AI service request failed. Check the endpoint, model, and credentials.') from None
+        detail = ''
+        try:
+            candidate = json.loads(exc.read(4096)).get('error', {}).get('type', '')
+            if candidate in {'invalid_request_error','invalid_credentials','unauthorized','forbidden',
+                             'quota_for_entity_exceeded','insufficient_credits','rate_limit_exceeded'}:
+                detail = f' ({candidate})'
+        except (ValueError,AttributeError,TypeError):
+            pass
+        raise ValueError(f'The included AI service returned HTTP {exc.code}{detail}.') from None
     except ValueError:raise
     except Exception as exc:raise ValueError('The AI service request failed. Check the endpoint, model, and credentials.') from exc
