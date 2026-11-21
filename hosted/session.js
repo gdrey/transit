@@ -115,6 +115,11 @@
         if (sameOrigin && init.method === 'POST' && ([
             '/api/assess-next','/api/clarify-alert','/api/manual-edits'
         ].includes(url.pathname))) setTimeout(refreshAI,0);
+        if (sameOrigin && url.pathname.startsWith('/api/') && response.status >= 500
+                && !response.headers.get('Content-Type')?.includes('application/json')) {
+            return new Response(JSON.stringify({error:'The workbench could not complete this request. Please retry.'}),
+                {status:response.status,headers:{'Content-Type':'application/json'}});
+        }
         return response;
     };
 

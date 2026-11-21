@@ -36,7 +36,6 @@ def files_for_read(path):
 
 OUTPUT_REQUIRED = {
     '/api/pipeline-output','/api/pipeline-verification','/api/latest-platform-version',
-    '/api/draft-view',
 }
 RESTORE_CHUNK = 512 * 1024
 
@@ -77,7 +76,7 @@ def restore_files(conn, session, directory, method, path):
                     raise ValueError('The temporary feed changed while it was loading. Please retry.')
                 buffer.write(row[0])
             buffer.seek(0)
-            with gzip.GzipFile(fileobj=buffer) as compressed, file.open('wb') as out:
+            with gzip.GzipFile(fileobj=buffer,mode='rb') as compressed, file.open('wb') as out:
                 shutil.copyfileobj(compressed,out)
         stat = file.stat()
         originals[name] = (stat.st_size,stat.st_mtime_ns)
