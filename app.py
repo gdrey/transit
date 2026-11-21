@@ -57,9 +57,9 @@ def engine(token, method, path, body=b'', ai=None, **kwargs):
             return {'status':401,'type':'application/json'},b'{"error":"Start a new temporary session."}',0
         return runtime.run(conn,row[0],method,path,body,ai,**kwargs)
 
-def browser_engine(token, method, path, body):
+def browser_engine(token, method, path, body, oidc_token=None):
     ai_route = path.split('?',1)[0].removeprefix('/api/')
-    provider = included_ai.provider() if method == 'POST' and ai_route in included_ai.AI_ROUTES else None
+    provider = included_ai.provider(oidc_token) if method == 'POST' and ai_route in included_ai.AI_ROUTES else None
     if provider is None:
         if method == 'POST' and ai_route in {'assess-next','clarify-alert'}:
             return {'status':503,'type':'application/json'},b'{"error":"Included AI is unavailable. You can still work with the schedule."}',0
@@ -262,7 +262,7 @@ async def ai_quota_error(_request,exc):
 
 @app.get('/api/included-ai')
 def included_ai_status(request:Request):
-    enabled = included_ai.provider() is not None
+    enabled = included_ai.provider(request.headers.get('x-vercel-oidc-token')) is not None
     remaining = None
     if enabled and cookie(request):
         with sessions.connect() as conn:
@@ -400,7 +400,7 @@ async def workbench_api(request:Request,path:str):
         return error('Use the ZIP upload control for large files.',413)
     target = '/api/'+path+('?' + request.url.query if request.url.query else '')
     result,payload,_ = await anyio.to_thread.run_sync(
-        lambda:browser_engine(cookie(request),request.method,target,raw))
+        lambda:browser_engine(cookie(request),request.method,target,raw,request.headers.get('x-vercel-oidc-token')))
     return Response(payload,status_code=result['status'],media_type=result['type'])
 
 from starlette.routing import Mount, Match

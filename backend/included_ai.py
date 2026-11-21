@@ -25,9 +25,17 @@ class Provider:
         return {'url':self.base_url + '/v1/chat/completions', 'model':self.model,
                 'key':self.token, 'allowance':allowance}
 
-def provider():
+def provider(oidc_token=None):
     if os.getenv('GTFS_INCLUDED_AI_ENABLED') != '1':
         return None
+    if os.getenv('GTFS_INCLUDED_AI_PROVIDER') == 'vercel':
+        if os.getenv('VERCEL_ENV') != 'production':
+            return None
+        token = oidc_token or os.getenv('VERCEL_OIDC_TOKEN')
+        model = os.getenv('GTFS_INCLUDED_AI_MODEL')
+        if not token or not model:
+            return None
+        return Provider('https://ai-gateway.vercel.sh', model, token)
     base_url = os.getenv('NEON_AI_GATEWAY_BASE_URL', '').rstrip('/')
     token = os.getenv('NEON_AI_GATEWAY_TOKEN')
     model = os.getenv('GTFS_INCLUDED_AI_MODEL')
