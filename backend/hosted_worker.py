@@ -10,11 +10,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'prototype'))
 import auto_model
+import llm_client
 import preview_server
 import workbench
 from hosted_network import opener
 
 class WorkbenchRequest(preview_server.Handler):
+    def ai_service(self):
+        return self.service
+
     def send(self, status, body, content_type):
         self.result = {'status':status, 'type':content_type}
         Path(os.environ['GTFS_RESPONSE']).write_bytes(body)
@@ -40,8 +44,21 @@ def main():
     handler = WorkbenchRequest.__new__(WorkbenchRequest)
     handler.path = event['path']
     handler.headers = {'Origin':'http://127.0.0.1:8766'}
-    if event.get('ai'):
-        handler.headers['X-GTFS-AI-Service'] = event['ai']
+    handler.service = event.get('ai')
+    calls_used = 0
+    if handler.service:
+        complete = llm_client.complete
+        def capped_completion(prompt, schema, service):
+            nonlocal calls_used
+            if calls_used >= handler.service['allowance']:
+                raise ValueError('The included AI limit for this request was reached.')
+            calls_used += 1
+            return complete(prompt,schema,handler.service,output_limit=2048,prompt_limit=131072)
+        llm_client.complete = capped_completion
+    else:
+        def unavailable_completion(*args, **kwargs):
+            raise ValueError('Included AI is unavailable for this request.')
+        llm_client.complete = unavailable_completion
     if event['method'] == 'POST':
         body = Path(event['upload']).read_bytes() if event.get('upload') else base64.b64decode(event['body'])
         handler.headers['Content-Length'] = str(len(body))
@@ -100,6 +117,7 @@ def main():
                 handler.send(400,json.dumps({'error':str(error)}).encode(),'application/json')
         else:
             handler.do_GET()
+    handler.result['ai_calls_used'] = calls_used
     print(json.dumps(handler.result))
 
 if __name__ == '__main__':

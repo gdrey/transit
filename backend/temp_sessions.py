@@ -35,6 +35,9 @@ def clean(conn):
       )
     """)
 
+def purge_ai_allowances(conn):
+    conn.execute("DELETE FROM transient_gtfs.ai_allowances WHERE expires_at <= now()")
+
 def start(conn):
     conn.execute('SELECT pg_advisory_xact_lock(17500838)')
     clean(conn)

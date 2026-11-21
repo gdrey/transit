@@ -8,6 +8,19 @@
         return value;
     }
 
+    async function refreshAI() {
+        const label = document.querySelector('#included-ai-status');
+        if (!label) return;
+        try {
+            const data = await json(await rawFetch('/api/included-ai'));
+            label.textContent = !data.enabled ? 'Included AI is currently unavailable.'
+                : data.remaining === null ? 'Start a session to use included AI.'
+                : data.remaining + ' of ' + data.session_cap + ' AI calls available for this session.';
+            const button = document.querySelector('#assess-next');
+            if (button) button.disabled = !data.enabled || data.remaining === 0;
+        } catch { label.textContent = 'Could not check included AI availability.'; }
+    }
+
     window.fetch = async (input, init = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
         if (url.origin === location.origin && url.pathname === '/api/import-upload' && init.body instanceof Blob) {
@@ -21,11 +34,16 @@
             }
             return rawFetch('/api/upload/' + id + '/finish?parts=' + parts, {method:'POST', headers:init.headers});
         }
-        return rawFetch(input, init);
+        const response = await rawFetch(input, init);
+        if (url.origin === location.origin && init.method === 'POST' && ([
+            '/api/assess-next','/api/clarify-alert','/api/manual-edits'
+        ].includes(url.pathname))) setTimeout(refreshAI,0);
+        return response;
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
         if (location.pathname === '/diagram.html') return;
+        refreshAI();
         const bar = document.createElement('section');
         bar.className = 'card';
         const status = document.createElement('p');

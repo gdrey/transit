@@ -163,7 +163,7 @@ def clarify(batch_id,entity_id,text,service=None):
 
 def trigger(limit,service=None):
     if not service:raise ValueError('Connect an AI service before assessing alerts.')
-    if limit not in (10,20): raise ValueError('Choose 10 or 20 alerts.')
+    if limit not in (1,5,10,20): raise ValueError('Choose 1, 5, 10 or 20 alerts.')
     data=latest()
     if not data: raise ValueError('Import alerts before starting an assessment.')
     if data['stale']: raise ValueError('The loaded schedule has changed; start a new assessment against the current feed.')

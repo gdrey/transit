@@ -19,12 +19,13 @@ import psycopg
 
 from backend import temp_sessions as sessions
 from backend import hosted_runtime as runtime
+from backend import included_ai
 
 ROOT = Path(__file__).resolve().parent
 SITE = os.getenv('GTFS_SITE_URL','https://transit-workbench.vercel.app').rstrip('/')
 RESOURCE = SITE + '/mcp'
 ASSETS = {
-    'comparison-mockup.html','diagram.html','agency_presets.js','ai_session.js','manual_edits.js',
+    'comparison-mockup.html','diagram.html','agency_presets.js','manual_edits.js',
     'pipeline_view.js','schedule_compare.js','comparison_marey.js','verification_view.js','workflow_tracker.js',
 }
 DOWNLOADS = {'pipeline','manual-edits','platform-version'}
@@ -55,6 +56,32 @@ def engine(token, method, path, body=b'', ai=None, **kwargs):
         if not row:
             return {'status':401,'type':'application/json'},b'{"error":"Start a new temporary session."}',0
         return runtime.run(conn,row[0],method,path,body,ai,**kwargs)
+
+def browser_engine(token, method, path, body):
+    ai_route = path.split('?',1)[0].removeprefix('/api/')
+    provider = included_ai.provider() if method == 'POST' and ai_route in included_ai.AI_ROUTES else None
+    if provider is None:
+        if method == 'POST' and ai_route in {'assess-next','clarify-alert'}:
+            return {'status':503,'type':'application/json'},b'{"error":"Included AI is unavailable. You can still work with the schedule."}',0
+        return engine(token,method,path,body)
+
+    with sessions.connect() as conn:
+        row = sessions.authorize(conn,token,lock=True)
+        if not row:
+            return {'status':401,'type':'application/json'},b'{"error":"Start a new temporary session."}',0
+        calls, body = included_ai.request_budget(ai_route,body)
+        scopes = included_ai.reserve(row[0],row[1],calls)
+        response = runtime.run(conn,row[0],method,path,body,provider.worker_config(calls))
+    # If a worker crashes or its state cannot be committed, retain the
+    # reservation. A missed refund can never increase paid usage.
+    used = response[0].get('ai_calls_used')
+    if type(used) is int and 0 <= used <= calls:
+        try:
+            included_ai.refund(scopes,calls-used)
+        except psycopg.Error:
+            pass
+    return response
+
 
 def tool(method, path, payload=None):
     token = get_access_token()
@@ -229,6 +256,23 @@ def csrf(request):
 def cookie(request):
     return request.cookies.get(sessions.COOKIE,'')
 
+@app.exception_handler(included_ai.QuotaExceeded)
+async def ai_quota_error(_request,exc):
+    return error(str(exc),429)
+
+@app.get('/api/included-ai')
+def included_ai_status(request:Request):
+    enabled = included_ai.provider() is not None
+    remaining = None
+    if enabled and cookie(request):
+        with sessions.connect() as conn:
+            session = sessions.authorize(conn,cookie(request))
+            if session:
+                used = included_ai.used_calls(conn,session[0])
+                remaining = max(0,included_ai.SESSION_CAP-used)
+    return {'enabled':enabled,'session_cap':included_ai.SESSION_CAP,'remaining':remaining,
+            'batch_size':included_ai.BATCH_SIZE}
+
 @app.get('/api/session')
 def session_info(request:Request):
     with sessions.connect() as conn:
@@ -269,6 +313,8 @@ def end_session(request:Request):
         row = sessions.authorize(conn,cookie(request),lock=True)
         if row:
             conn.execute('DELETE FROM transient_gtfs.sessions WHERE id=%s',(row[0],))
+            conn.execute('DELETE FROM transient_gtfs.ai_allowances WHERE scope=%s',
+                         (included_ai.scope_for(row[0]),))
     result = Response(status_code=204)
     result.delete_cookie(sessions.COOKIE,httponly=True,secure=SITE.startswith('https:'),samesite='strict')
     return result
@@ -281,6 +327,7 @@ def cleanup(request:Request):
         return error('Unauthorized',401)
     with sessions.connect() as conn:
         sessions.clean(conn)
+        sessions.purge_ai_allowances(conn)
     return {'ok':True}
 
 @app.post('/api/upload/{upload}/{part:int}')
@@ -325,7 +372,7 @@ def finish_upload(request:Request,upload:uuid.UUID,parts:int):
             cur.execute('SELECT name,content FROM transient_gtfs.files WHERE session_id=%s AND name LIKE %s ORDER BY name',
                         (row[0],prefix+'%'))
             result,payload,_ = runtime.run(conn,row[0],'POST','/api/import-upload',
-                                           ai=request.headers.get('x-gtfs-ai-service'),upload_parts=cur)
+                                           upload_parts=cur)
         conn.execute('DELETE FROM transient_gtfs.files WHERE session_id=%s AND name LIKE %s',(row[0],prefix+'%'))
         sessions.check_size(conn,row[0])
     return Response(payload,status_code=result['status'],media_type=result['type'])
@@ -353,7 +400,7 @@ async def workbench_api(request:Request,path:str):
         return error('Use the ZIP upload control for large files.',413)
     target = '/api/'+path+('?' + request.url.query if request.url.query else '')
     result,payload,_ = await anyio.to_thread.run_sync(
-        lambda:engine(cookie(request),request.method,target,raw,request.headers.get('x-gtfs-ai-service')))
+        lambda:browser_engine(cookie(request),request.method,target,raw))
     return Response(payload,status_code=result['status'],media_type=result['type'])
 
 from starlette.routing import Mount, Match
@@ -378,5 +425,12 @@ def page(path:str='comparison-mockup.html'):
         html = file.read_text(encoding='utf-8')
         html = html.replace('<head>','<head><script src="/session.js"></script>',1)
         html = html.replace('GTFS Workbench · Local prototype','GTFS Workbench')
+        if path=='comparison-mockup.html':
+            html = html.replace('<script src="/ai_session.js"></script>','',1)
+            start = html.index('<section class="section" id="assistant-setup">')
+            end = html.index('</section>',start) + len('</section>')
+            html = html[:start] + (ROOT/'hosted'/'included-ai.html').read_text(encoding='utf-8') + html[end:]
+            html = html.replace('<option value="10">10 alerts</option><option value="20">20 alerts</option>',
+                                '<option value="5">Up to 5 alerts</option><option value="1">1 alert</option>',1)
         return HTMLResponse(html)
     return FileResponse(file)
