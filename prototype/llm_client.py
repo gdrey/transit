@@ -40,9 +40,16 @@ def complete(prompt,schema,service,*,output_limit=None,prompt_limit=None):
             raise ValueError('The AI service request failed. Check the endpoint, model, and credentials.') from None
         detail = ''
         try:
-            candidate = json.loads(exc.read(4096)).get('error', {}).get('type', '')
-            if candidate in {'invalid_request_error','invalid_credentials','unauthorized','forbidden',
-                             'quota_for_entity_exceeded','insufficient_credits','rate_limit_exceeded'}:
+            failure = json.loads(exc.read(4096)).get('error', {})
+            candidate = failure.get('type', '')
+            message = failure.get('message', '')
+            lower = message.lower() if isinstance(message,str) else ''
+            if 'credit card on file' in lower or 'payment method on file' in lower:
+                detail = ' (payment method required)'
+            elif 'free tier' in lower and ('model' in lower or 'support' in lower):
+                detail = ' (model unavailable on free tier)'
+            elif candidate in {'invalid_request_error','invalid_credentials','unauthorized','forbidden',
+                               'access_denied','quota_for_entity_exceeded','insufficient_credits','rate_limit_exceeded'}:
                 detail = f' ({candidate})'
         except (ValueError,AttributeError,TypeError):
             pass
