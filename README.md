@@ -4,6 +4,8 @@ An agency-agnostic, local prototype for inspecting a GTFS Schedule, interpreting
 
 The [hosted workbench](https://transit-workbench.vercel.app/) uses a private, temporary session with no account. Select and import a feed to start working. See [hosted setup and MCP client configuration](hosted/README.md).
 
+Start with the [MCP handoff](docs/MCP_HANDOFF.md) for agreed rules, worked alert examples, tool capabilities, and next implementation steps.
+
 ## Run locally
 
 Use Python 3.10 or later and install the prototype dependencies:
