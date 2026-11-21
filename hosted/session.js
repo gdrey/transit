@@ -7,6 +7,49 @@
     let expiresAt = null;
     let pendingSession;
 
+    // Share the request limit with the same-origin schedule iframe.
+    // Several panels ask for the same feed data after an import.
+    const queue = [];
+    const reads = new Map();
+    let active = 0;
+    function drain() {
+        while (active < 2 && queue.length) {
+            active++;
+            const {input, init, resolve, reject} = queue.shift();
+            rawFetch(input,init).then(resolve,reject).finally(() => { active--; drain(); });
+        }
+    }
+
+    function enqueue(input, init, url) {
+        const method = (init.method || 'GET').toUpperCase();
+        const key = method === 'GET' ? url.href : null;
+        let task = key && reads.get(key);
+        if (!task) {
+            task = new Promise((resolve,reject) => {
+                const job = {input,init,resolve,reject};
+                if (method === 'POST') queue.unshift(job);
+                else queue.push(job);
+                drain();
+            });
+            if (key) {
+                reads.set(key,task);
+                const clear = () => reads.delete(key);
+                task.then(clear,clear);
+            }
+        }
+        return key ? task.then(response => response.clone()) : task;
+    }
+
+    let requestGate = enqueue;
+    try {
+        if (window.parent !== window && typeof window.parent.gtfsHostedRequest === 'function') {
+            requestGate = window.parent.gtfsHostedRequest;
+        }
+    } catch {
+        // A standalone embed can use its own request queue.
+    }
+    window.gtfsHostedRequest = requestGate;
+
     function setSession(expires) {
         expiresAt = expires;
         window.dispatchEvent(new CustomEvent('gtfs-session-change',{detail:expires}));
@@ -63,7 +106,9 @@
             return rawFetch('/api/upload/' + id + '/finish?parts=' + parts, {method:'POST', headers:init.headers});
         }
         const requestSession = expiresAt;
-        const response = await rawFetch(input, init);
+        const response = sameOrigin && url.pathname.startsWith('/api/')
+            ? await requestGate(input,init,url)
+            : await rawFetch(input,init);
         if (sameOrigin && response.status === 401 && requestSession && expiresAt === requestSession) {
             setSession(null);
         }

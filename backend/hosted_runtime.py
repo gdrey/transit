@@ -12,12 +12,28 @@ import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
+from urllib.parse import parse_qs, urlsplit
 
 from backend import temp_sessions
 
 WORKER = Path(__file__).with_name('hosted_worker.py')
 # The worker needs neither the database connection nor platform credentials.
 WORKER_ENV = ('PATH','LANG','LC_ALL','SSL_CERT_FILE','SSL_CERT_DIR','LD_LIBRARY_PATH','PYTHONPATH','TZ')
+
+def files_for_read(path):
+    url = urlsplit(path)
+    if url.path in {'/api/summary','/api/hosted-trips'}:
+        return ['feed.sqlite']
+    if url.path == '/api/routes' and parse_qs(url.query).get('feed',[''])[0] != 'draft':
+        return ['feed.sqlite']
+    if url.path == '/api/agency-presets':
+        return ['agency-presets.json']
+    if url.path == '/api/auto-model-status':
+        return []
+    if url.path == '/api/model-job':
+        return ['hosted-model-job.json']
+    return None
+
 
 def run(conn, session, method, path, body=b'', ai=None, upload_parts=None, part=None):
     with TemporaryDirectory(prefix='gtfs-') as root:
@@ -26,7 +42,11 @@ def run(conn, session, method, path, body=b'', ai=None, upload_parts=None, part=
         originals = {}
         # A named cursor avoids buffering the full Neon result in Python/libpq.
         with conn.cursor(name='workbench_files') as cur:
-            cur.execute("SELECT name,content FROM transient_gtfs.files WHERE session_id=%s AND name NOT LIKE '@%%'",(session,))
+            files = files_for_read(path) if method == 'GET' else None
+            if files is None:
+                cur.execute("SELECT name,content FROM transient_gtfs.files WHERE session_id=%s AND name NOT LIKE '@%%'",(session,))
+            else:
+                cur.execute("SELECT name,content FROM transient_gtfs.files WHERE session_id=%s AND name=ANY(%s)",(session,files))
             for name, content in cur:
                 file = directory / name
                 file.parent.mkdir(parents=True,exist_ok=True)

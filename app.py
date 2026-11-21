@@ -1,5 +1,6 @@
 """Transit Workbench web app and MCP transport on Vercel."""
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from functools import wraps
@@ -50,11 +51,17 @@ mcp = FastMCP('Transit Workbench',stateless_http=True,json_response=True,streama
               auth=AuthSettings(issuer_url=SITE,resource_server_url=RESOURCE,validate_token_resource=True),
               token_verifier=SessionVerifier())
 
+def no_session():
+    return {'status':401,'type':'application/json'},b'{"error":"Start a new temporary session."}',0
+
+
 def engine(token, method, path, body=b'', ai=None, **kwargs):
+    if not sessions.CREDENTIAL.fullmatch(token or ''):
+        return no_session()
     with sessions.connect() as conn:
         row = sessions.authorize(conn,token,lock=method=='POST')
         if not row:
-            return {'status':401,'type':'application/json'},b'{"error":"Start a new temporary session."}',0
+            return no_session()
         return runtime.run(conn,row[0],method,path,body,ai,**kwargs)
 
 def browser_engine(token, method, path, body, oidc_token=None):
@@ -68,7 +75,7 @@ def browser_engine(token, method, path, body, oidc_token=None):
     with sessions.connect() as conn:
         row = sessions.authorize(conn,token,lock=True)
         if not row:
-            return {'status':401,'type':'application/json'},b'{"error":"Start a new temporary session."}',0
+            return no_session()
         calls, body = included_ai.request_budget(ai_route,body)
         scopes = included_ai.reserve(row[0],row[1],calls)
         response = runtime.run(conn,row[0],method,path,body,provider.worker_config(calls))
@@ -237,7 +244,9 @@ def error(message,status=400):
     return JSONResponse({'error':message},status_code=status)
 
 @app.exception_handler(psycopg.Error)
-async def database_error(_request,_error):
+async def database_error(_request,exc):
+    logging.getLogger(__name__).warning('Session database request failed: %s (%s)',
+                                        type(exc).__name__,exc.sqlstate or 'no SQLSTATE')
     return error('The session database is busy or unavailable. Try again shortly.',503)
 
 @app.exception_handler(ValueError)
@@ -279,6 +288,8 @@ def included_ai_status(request:Request):
 
 @app.get('/api/session')
 def session_info(request:Request):
+    if not sessions.CREDENTIAL.fullmatch(cookie(request)):
+        return {'expires_at':None}
     with sessions.connect() as conn:
         row = sessions.authorize(conn,cookie(request))
     return {'expires_at':row[1].isoformat() if row else None}
