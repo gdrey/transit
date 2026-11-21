@@ -52,11 +52,11 @@ def start(conn):
     """,(key,digest(secret),SESSION_HOURS)).fetchone()
     return f'{key.hex}.{secret}', expires.isoformat()
 
-def authorize(conn, credential, lock=False):
+def authorize(conn, credential, lock=False, read_lock=False):
     match = CREDENTIAL.fullmatch(credential or '')
     if match is None:
         return None
-    suffix = ' FOR UPDATE' if lock else ''
+    suffix = ' FOR UPDATE' if lock else ' FOR SHARE' if read_lock else ''
     row = conn.execute("""
       SELECT id, expires_at FROM transient_gtfs.sessions
       WHERE id=%s AND token_hash=%s AND expires_at > clock_timestamp()

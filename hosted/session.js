@@ -13,7 +13,7 @@
     const reads = new Map();
     let active = 0;
     function drain() {
-        while (active < 2 && queue.length) {
+        while (active === 0 && queue.length) {
             active++;
             const {input, init, resolve, reject} = queue.shift();
             rawFetch(input,init).then(resolve,reject).finally(() => { active--; drain(); });

@@ -4,5 +4,5 @@
  window.addEventListener('message',e=>{if(e.origin===location.origin&&(e.source===original.contentWindow||e.source===draft.contentWindow)&&e.data?.type==='schedule-selection'){selection=e.data;send(e.source===original.contentWindow?draft:original)}});
  original.addEventListener('load',()=>send(original));draft.addEventListener('load',()=>send(draft));
  async function refresh(){if(polling)return;polling=true;try{const response=await fetch('/api/pipeline-output');const output=await response.json();if(!response.ok)throw Error(output.error||'Output unavailable');if(!output){label.textContent='Run the pipeline to see the updated schedule.';draft.hidden=true;draft.closest('.live-schedule').classList.add('is-empty');key=null;return}if(output.sha256!==key){key=output.sha256;draft.hidden=false;draft.closest('.live-schedule').classList.remove('is-empty');label.textContent='Output GTFS · '+output.sha256.slice(0,12);draft.src='diagram.html?embedded=1&feed=draft'} }catch(e){label.textContent='Output schedule unavailable: '+e.message;draft.hidden=true;draft.closest('.live-schedule').classList.add('is-empty');key=null}finally{polling=false}}
- refresh();setInterval(refresh,5000);window.addEventListener('pipeline-updated',refresh);
+ refresh();if(!window.gtfsHostedRequest)setInterval(refresh,5000);window.addEventListener('pipeline-updated',refresh);
 })();

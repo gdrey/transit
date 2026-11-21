@@ -2,7 +2,6 @@
 import base64
 import gzip
 import hashlib
-import io
 import json
 import logging
 import re
@@ -11,7 +10,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-from tempfile import TemporaryDirectory
+from tempfile import SpooledTemporaryFile, TemporaryDirectory
 from urllib.parse import parse_qs, urlsplit
 
 from backend import temp_sessions
@@ -35,26 +34,61 @@ def files_for_read(path):
     return None
 
 
+OUTPUT_REQUIRED = {
+    '/api/pipeline-output','/api/pipeline-verification','/api/latest-platform-version',
+    '/api/draft-view',
+}
+RESTORE_CHUNK = 512 * 1024
+
+
+def restore_files(conn, session, directory, method, path):
+    requested = files_for_read(path) if method == 'GET' else None
+    if requested is None:
+        rows = conn.execute("""
+            SELECT name,size FROM transient_gtfs.files
+            WHERE session_id=%s AND name NOT LIKE '@%%'
+        """, (session,)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT name,size FROM transient_gtfs.files
+            WHERE session_id=%s AND name=ANY(%s)
+        """, (session,requested)).fetchall()
+    names = {name for name,_ in rows}
+    route = urlsplit(path).path
+    if method == 'GET' and (
+        (route in OUTPUT_REQUIRED and 'pipeline/current.json' not in names)
+        or (route == '/api/alert-assessments' and 'alerts.sqlite' not in names)
+    ):
+        return {}
+
+    originals = {}
+    for name,size in rows:
+        file = directory / name
+        file.parent.mkdir(parents=True,exist_ok=True)
+        # Never return a full-size bytea result through the Neon pooler.
+        # gzip output already compresses these snapshots before storage.
+        with SpooledTemporaryFile(max_size=RESTORE_CHUNK) as buffer:
+            for offset in range(0,size,RESTORE_CHUNK):
+                row = conn.execute("""
+                    SELECT substring(content FROM %s FOR %s)
+                    FROM transient_gtfs.files WHERE session_id=%s AND name=%s
+                """, (offset+1,RESTORE_CHUNK,session,name),binary=True).fetchone()
+                if not row or len(row[0]) != min(RESTORE_CHUNK,size-offset):
+                    raise ValueError('The temporary feed changed while it was loading. Please retry.')
+                buffer.write(row[0])
+            buffer.seek(0)
+            with gzip.GzipFile(fileobj=buffer) as compressed, file.open('wb') as out:
+                shutil.copyfileobj(compressed,out)
+        stat = file.stat()
+        originals[name] = (stat.st_size,stat.st_mtime_ns)
+    return originals
+
+
 def run(conn, session, method, path, body=b'', ai=None, upload_parts=None, part=None):
     with TemporaryDirectory(prefix='gtfs-') as root:
         directory = Path(root, '.data')
         directory.mkdir()
-        originals = {}
-        # A named cursor avoids buffering the full Neon result in Python/libpq.
-        with conn.cursor(name='workbench_files') as cur:
-            files = files_for_read(path) if method == 'GET' else None
-            if files is None:
-                cur.execute("SELECT name,content FROM transient_gtfs.files WHERE session_id=%s AND name NOT LIKE '@%%'",(session,))
-            else:
-                cur.execute("SELECT name,content FROM transient_gtfs.files WHERE session_id=%s AND name=ANY(%s)",(session,files))
-            for name, content in cur:
-                file = directory / name
-                file.parent.mkdir(parents=True,exist_ok=True)
-                with file.open('wb') as out:
-                    with gzip.GzipFile(fileobj=io.BytesIO(content)) as compressed:
-                        shutil.copyfileobj(compressed,out)
-                stat = file.stat()
-                originals[name] = (stat.st_size, stat.st_mtime_ns)
+        originals = restore_files(conn,session,directory,method,path)
         event = {'method':method,'path':path,'body':base64.b64encode(body).decode('ascii'),'ai':ai}
         if upload_parts is not None:
             upload = Path(root,'upload.zip')

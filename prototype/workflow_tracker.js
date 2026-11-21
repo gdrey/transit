@@ -7,5 +7,5 @@
   if(alerts.status==='fulfilled'&&alerts.value){const items=alerts.value.items||[];el('tracker-alerts').textContent=items.length?`${items.length} imported · ${items.filter(x=>['not_checked','queued','running'].includes(x.state)).length} pending`:'No alerts';const list=el('tracker-alert-items');list.replaceChildren();items.forEach(item=>{const row=document.createElement('div');row.className='tracker-edit';const text=document.createElement('div');text.textContent=(item.change_id||'Change')+' · '+((item.item||{}).text||'').replace(/\s+/g,' ').slice(0,100);const state=document.createElement('span');state.textContent=(item.state||'not checked').replace(/_/g,' ');row.append(text,state);list.append(row)})}else el('tracker-alerts').textContent='No alerts';
   el('tracker-review').textContent=draft.status==='fulfilled'&&draft.value.available?(draft.value.service_included?'Service draft available':'Feed edits draft available'):'No draft yet';busy=false
  }
- refresh();setInterval(refresh,5000);
+ refresh();window.addEventListener('pipeline-updated',refresh);if(!window.gtfsHostedRequest)setInterval(refresh,5000);
 })();

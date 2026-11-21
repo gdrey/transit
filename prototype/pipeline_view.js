@@ -10,5 +10,5 @@
  el('pipeline-download').hidden=!result;el('pipeline-output-state').textContent=result?`Last run · ${result.tasks.length} applied tasks${result.excluded_alerts?.length?' · Partial output: '+result.excluded_alerts.length+' alerts not included':''}`:'Run the pipeline to create an output GTFS.';el('pipeline-result').textContent=result?'Output SHA-256: '+result.sha256:'';
  if(result?.excluded_alerts?.length){const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('ul');details.open=excludedOpen;details.addEventListener('toggle',()=>{excludedOpen=details.open});summary.textContent='Alerts not included ('+result.excluded_alerts.length+')';for(const item of result.excluded_alerts){const li=document.createElement('li');li.textContent=item.change_id+' — '+item.reason;list.append(li)}details.append(summary,list);el('pipeline-result').append(details)}
  }finally{busy=false}}
- refresh();setInterval(refresh,5000);window.addEventListener('pipeline-updated',refresh);
+ refresh();if(!window.gtfsHostedRequest)setInterval(refresh,5000);window.addEventListener('pipeline-updated',refresh);
 })();

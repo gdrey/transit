@@ -59,7 +59,9 @@ def engine(token, method, path, body=b'', ai=None, **kwargs):
     if not sessions.CREDENTIAL.fullmatch(token or ''):
         return no_session()
     with sessions.connect() as conn:
-        row = sessions.authorize(conn,token,lock=method=='POST')
+        # Hold a shared session lock while reading a chunked snapshot.
+        # A mutation cannot replace that session's files mid-restore.
+        row = sessions.authorize(conn,token,lock=method=='POST',read_lock=method=='GET')
         if not row:
             return no_session()
         return runtime.run(conn,row[0],method,path,body,ai,**kwargs)
