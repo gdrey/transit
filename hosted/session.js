@@ -1,6 +1,30 @@
 (() => {
     const rawFetch = window.fetch.bind(window);
     const chunkSize = 3 * 1024 * 1024;
+    const sessionActions = new Set([
+        '/api/import-url','/api/import-upload','/api/import-alerts','/api/agency-presets'
+    ]);
+    let expiresAt = null;
+    let pendingSession;
+
+    function setSession(expires) {
+        expiresAt = expires;
+        window.dispatchEvent(new CustomEvent('gtfs-session-change',{detail:expires}));
+    }
+
+    async function ensureSession() {
+        if (expiresAt && Date.parse(expiresAt) > Date.now() + 5000) return expiresAt;
+        if (!pendingSession) {
+            pendingSession = rawFetch('/api/session',{method:'POST'})
+                .then(json)
+                .then(data => {
+                    setSession(data.expires_at);
+                    return data.expires_at;
+                })
+                .finally(() => { pendingSession = null; });
+        }
+        return pendingSession;
+    }
 
     async function json(response) {
         const value = await response.json();
@@ -23,7 +47,11 @@
 
     window.fetch = async (input, init = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
-        if (url.origin === location.origin && url.pathname === '/api/import-upload' && init.body instanceof Blob) {
+        const sameOrigin = url.origin === location.origin;
+        if (sameOrigin && init.method === 'POST' && sessionActions.has(url.pathname)) {
+            await ensureSession();
+        }
+        if (sameOrigin && url.pathname === '/api/import-upload' && init.body instanceof Blob) {
             const id = crypto.randomUUID();
             const parts = Math.ceil(init.body.size / chunkSize);
             for (let i = 0; i < parts; i++) {
@@ -34,8 +62,12 @@
             }
             return rawFetch('/api/upload/' + id + '/finish?parts=' + parts, {method:'POST', headers:init.headers});
         }
+        const requestSession = expiresAt;
         const response = await rawFetch(input, init);
-        if (url.origin === location.origin && init.method === 'POST' && ([
+        if (sameOrigin && response.status === 401 && requestSession && expiresAt === requestSession) {
+            setSession(null);
+        }
+        if (sameOrigin && init.method === 'POST' && ([
             '/api/assess-next','/api/clarify-alert','/api/manual-edits'
         ].includes(url.pathname))) setTimeout(refreshAI,0);
         return response;
@@ -70,15 +102,22 @@
             connect.hidden = !expires;
             status.textContent = expires
                 ? 'Temporary session expires at ' + new Date(expires).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + '.'
-                : 'Start a temporary session to import a feed.';
+                : 'Import a feed to start a private temporary session.';
         }
-        showSession(null);
-        try { showSession((await json(await rawFetch('/api/session'))).expires_at); }
-        catch (error) { status.textContent = error.message; }
+        window.addEventListener('gtfs-session-change',event => {
+            showSession(event.detail);
+            refreshAI();
+        });
+        showSession(expiresAt);
+        rawFetch('/api/session').then(json).then(data => {
+            if (!expiresAt && !pendingSession) setSession(data.expires_at);
+        }).catch(error => { if (!expiresAt) status.textContent = error.message; });
         start.onclick = async () => {
             start.disabled = true;
-            try { await json(await rawFetch('/api/session',{method:'POST'})); location.reload(); }
-            catch (error) { status.textContent = error.message; }
+            try {
+                await ensureSession();
+                if (typeof showFeed === 'function') await showFeed();
+            } catch (error) { status.textContent = error.message; }
             finally { start.disabled = false; }
         };
         end.onclick = async () => {

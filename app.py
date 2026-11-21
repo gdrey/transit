@@ -226,7 +226,11 @@ async def private_responses(request, call_next):
     result.headers['Cache-Control'] = 'private, no-store'
     result.headers['X-Content-Type-Options'] = 'nosniff'
     result.headers['Referrer-Policy'] = 'no-referrer'
-    result.headers['X-Frame-Options'] = 'DENY'
+    if request.url.path == '/diagram.html':
+        result.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        result.headers['Content-Security-Policy'] = "frame-ancestors 'self'"
+    else:
+        result.headers['X-Frame-Options'] = 'DENY'
     return result
 
 def error(message,status=400):
@@ -388,6 +392,16 @@ def download(request:Request,name:str,part:int=0,expected:str|None=None):
         return error('The draft changed during download. Download it again.',409)
     return Response(payload,media_type='application/zip',
                     headers={'X-GTFS-ZIP-Size':str(size),'X-GTFS-ZIP-SHA256':result['sha256']})
+
+@app.get('/api/agency-presets')
+def browser_agency_presets(request:Request):
+    credential = cookie(request)
+    if credential:
+        result,payload,_ = engine(credential,'GET','/api/agency-presets')
+        if result['status'] != 401:
+            return Response(payload,status_code=result['status'],media_type=result['type'])
+    with (ROOT/'prototype'/'builtin-agency-presets.json').open(encoding='utf-8') as stream:
+        return {'items':json.load(stream)}
 
 @app.api_route('/api/{path:path}',methods=['GET','POST'])
 async def workbench_api(request:Request,path:str):

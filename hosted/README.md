@@ -2,7 +2,7 @@
 
 Vercel serves the FastAPI application at the repository root. The application reuses the GTFS workbench UI and processing engine under `prototype/`. Neon stores each browser session's working files privately. The engine uses disposable scratch space per request. No agency feed is downloaded until an operator imports it.
 
-Click **Start temporary session**, then pick an agency, enter a public HTTPS source, or upload a ZIP. Review changes before running the pipeline. The download is assembled from the same checked output ZIP shown in the comparison. Sign out with **End session** to remove the active data immediately. Access also expires after two hours. Vercel's daily cleanup and new session creation remove expired records from active storage. Neon manages its own backup and recovery retention separately.
+Pick an agency, enter a public HTTPS source, or upload a ZIP. The first import starts a private temporary session automatically. Review changes before running the pipeline. The download is assembled from the same checked output ZIP shown in the comparison. Sign out with **End session** to remove the active data immediately. Access also expires after two hours. Vercel's daily cleanup and new session creation remove expired records from active storage. Neon manages its own backup and recovery retention separately.
 
 The browser can reveal a temporary bearer credential under **Connect an MCP client**. Configure it as an Authorization header for the Streamable HTTP `/mcp` endpoint. The credential is private and expires with the same session. Clients that require OAuth need a separate pairing flow. The `open_workbench` tool provides a schedule and review panel in MCP Apps hosts. Other clients receive a link to the workbench.
 
